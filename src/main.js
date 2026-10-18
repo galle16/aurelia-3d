@@ -6,7 +6,7 @@ import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPa
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import { createWatch } from './watch.js';
+import { createWatch, VARIANTS } from './watch.js';
 import { loadGLBWatch } from './glbWatch.js';
 import { createShards, createSparks, createStreak } from './effects.js';
 import { createShowcase, MODELS } from './showcase.js';
@@ -18,7 +18,7 @@ const canvas = document.getElementById('gl');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 1.75));
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 0.95;
+renderer.toneMappingExposure = 1.12;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 
 const scene = new THREE.Scene();
@@ -27,19 +27,20 @@ scene.background = new THREE.Color('#030303');
 // Entorno de estudio: fondo oscuro con softboxes → reflejos de joyería
 function studioEnv() {
   const env = new THREE.Scene();
-  env.add(new THREE.Mesh(new THREE.SphereGeometry(20, 32, 16), new THREE.MeshBasicMaterial({ color: '#0a0806', side: THREE.BackSide })));
-  const box = (w, h, x, y, z, intensity, color = '#fff3e0') => {
+  env.add(new THREE.Mesh(new THREE.SphereGeometry(20, 32, 16), new THREE.MeshBasicMaterial({ color: '#1c1b1a', side: THREE.BackSide })));
+  const box = (w, h, x, y, z, intensity, color = '#ffffff') => {
     const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide }));
     m.material.color.multiplyScalar(intensity);
     m.position.set(x, y, z);
     m.lookAt(0, 0, 0);
     env.add(m);
   };
-  box(6, 1.5, 0, 9, 6, 1.1);            // cenital
-  box(3, 12, -10, 0, 4, 3.2);        // lateral izq
-  box(3, 12, 10, 1, 2, 2.4, '#ffd9a0');
-  box(14, 1.2, 0, -3, 10, 1.6);      // tira frontal baja
-  box(4, 4, 6, 6, -8, 1.5, '#ffcf8a'); // contraluz
+  box(16, 6, 0, 10, 4, 1.5);                 // gran softbox cenital
+  box(4, 16, -11, 0, 5, 2.0, '#f2f5fa');     // tira lateral izquierda
+  box(4, 16, 11, 1, 3, 1.5, '#ffe2bd');      // tira lateral derecha cálida
+  box(18, 2.5, 0, -4, 11, 0.9);              // tira frontal baja
+  box(10, 6, 0, 2, 12, 0.22);                 // relleno frontal suave
+  box(5, 5, 6, 6, -9, 1.5, '#ffcf8a');       // contraluz
   const pm = new THREE.PMREMGenerator(renderer);
   const tex = pm.fromScene(env, 0.02).texture;
   pm.dispose();
@@ -49,9 +50,9 @@ scene.environment = studioEnv();
 
 const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 200);
 
-const key = new THREE.DirectionalLight('#fff1d6', 0.6);
+const key = new THREE.DirectionalLight('#fff1d6', 0);
 key.position.set(3, 6, 8);
-const rim = new THREE.DirectionalLight('#ffbf66', 1.2);
+const rim = new THREE.DirectionalLight('#ffbf66', 0);
 rim.position.set(-6, 3, -5);
 const front = new THREE.PointLight('#ffd690', 8, 30, 1.6);
 front.position.set(0, 0, 6);
@@ -60,7 +61,7 @@ scene.add(key, rim, front, new THREE.AmbientLight('#ffffff', 0.08));
 // ── Reloj protagonista ────────────────────────────────
 const heroGroup = new THREE.Group();
 scene.add(heroGroup);
-let hero = createWatch({ links: 10, curve: 5 });
+let hero = createWatch({ ...VARIANTS.solstice, links: 13, curve: 5 });
 heroGroup.add(hero.root);
 
 loadGLBWatch()
@@ -87,7 +88,7 @@ scene.add(showcase.group);
 // ── Postproceso ───────────────────────────────────────
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
-const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.5, 0.5, 3);
+const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.5, 0.35, 2.6);
 composer.addPass(bloom);
 composer.addPass(new OutputPass());
 
@@ -144,14 +145,16 @@ const fitZ = (height, width) => {
 
 const tmp = new THREE.Vector3();
 const clock = new THREE.Clock();
-let sm = 0;
+// Solo en desarrollo: ?p=0.5 fija el progreso para revisar una fase
+const DEBUG_P = import.meta.env.DEV ? parseFloat(new URLSearchParams(location.search).get('p')) : NaN;
+let sm = Number.isFinite(DEBUG_P) ? DEBUG_P : 0;
 let ctaShown = false;
 
 function frame() {
   const dt = Math.min(clock.getDelta(), 0.05);
   const t = clock.elapsedTime;
   const now = Date.now();
-  sm += (state.p - sm) * Math.min(1, dt * 7);
+  sm += ((Number.isFinite(DEBUG_P) ? DEBUG_P : state.p) - sm) * Math.min(1, dt * 7);
   const p = sm;
 
   // Fases
@@ -162,13 +165,13 @@ function frame() {
 
   hero.setExplode(e);
   hero.tick(dt, now);
-  hero.setGlow(0.7 + zoom * 5);
+  hero.setGlow(0.7 + zoom * 3.3);
   shards.update(e, t);
   sparks.update(e, t);
   showcase.tick(dt, now, t);
 
-  heroGroup.rotation.y = Math.sin(t * 0.45) * 0.22 * (1 - zoom) + spin * Math.PI * 2 + e * 0.5;
-  heroGroup.rotation.x = Math.sin(t * 0.6) * 0.04 + e * 0.22 - zoom * 0.04;
+  heroGroup.rotation.y = (Math.sin(t * 0.45) * 0.18 - 0.38) * (1 - zoom) + spin * Math.PI * 2 + e * 0.5;
+  heroGroup.rotation.x = Math.sin(t * 0.6) * 0.04 + 0.16 * (1 - zoom) + e * 0.22;
 
   // Cámara
   const zHero = fitZ(8.6, 3.2);
@@ -184,12 +187,12 @@ function frame() {
   camera.position.set(mouse.sx * 0.5 * par, -mouse.sy * 0.35 * par + SHOWCASE_Y * pan + 0.35 * pan, z);
   camera.lookAt(0, SHOWCASE_Y * pan + 0.35 * pan, 0);
 
-  front.intensity = zoom * 3 * (1 - pan);
+  front.intensity = 0;
   front.position.y = SHOWCASE_Y * pan;
   streak.update(1 - ss(0.04, 0.14, p), t);
   streak.group.position.y = SHOWCASE_Y * pan;
   streak.halo.material.opacity *= 1 - pan;
-  bloom.strength = 0.6 + zoom * 0.3 + e * 0.3;
+  bloom.strength = 0.55 + zoom * 0.1 + e * 0.3;
 
   // Rótulos bajo cada compartimento
   const lo = trap(p, [0.93, 0.97, 1.1, 1.2]);

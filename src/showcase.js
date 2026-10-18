@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
-import { createWatch, MAT } from './watch.js';
+import { createWatch, VARIANTS } from './watch.js';
 
 const velvet = new THREE.MeshPhysicalMaterial({
   color: '#0b0a0c', roughness: 1, metalness: 0, sheen: 1, sheenRoughness: 0.45, sheenColor: new THREE.Color('#4a4048'),
@@ -10,9 +10,9 @@ const lacquer = new THREE.MeshPhysicalMaterial({
 });
 
 export const MODELS = [
-  { name: 'Solstice', dial: '#eeebe2', ink: '#3d3424' },
-  { name: 'Abyss', dial: '#6a6f78', ink: '#1a1c20' },
-  { name: 'Meridian', dial: '#ece2c8', ink: '#4a3a1c' },
+  { name: 'Solstice', ...VARIANTS.solstice },
+  { name: 'Abyss', ...VARIANTS.abyss },
+  { name: 'Meridian', ...VARIANTS.meridian },
 ];
 
 /** Estuche de terciopelo negro con 3 compartimentos y un reloj en cada uno. */
@@ -54,7 +54,7 @@ export function createShowcase() {
     cushion.position.set(x, -0.05, -0.62);
     group.add(cushion);
 
-    const w = createWatch({ ...MODELS[i], links: 5, curve: 0.95 });
+    const w = createWatch({ ...MODELS[i], links: 6, curve: 0.95, texSize: 1024 });
     w.root.scale.setScalar(0.66);
     w.root.position.set(x, 0.05, -0.05);
     w.root.rotation.x = -0.08;
@@ -63,7 +63,7 @@ export function createShowcase() {
     watches.push(w);
 
     // foco cenital por compartimento
-    const spot = new THREE.SpotLight('#ffe2b0', 2, 7, 0.55, 0.6, 1.4);
+    const spot = new THREE.SpotLight('#ffe2b0', 0, 7, 0.55, 0.6, 1.4);
     spot.position.set(x, 2.8, 0.9);
     spot.target.position.set(x, 0, -0.2);
     group.add(spot, spot.target);

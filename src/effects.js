@@ -38,7 +38,7 @@ const additive = (map, opacity = 1) =>
 export function createShards(count = 520) {
   const geo = new THREE.TetrahedronGeometry(1, 0);
   geo.scale(1, 0.55, 0.14);
-  const mesh = new THREE.InstancedMesh(geo, MAT.polished, count);
+  const mesh = new THREE.InstancedMesh(geo, MAT.shard, count);
   mesh.frustumCulled = false;
   const data = [];
   for (let i = 0; i < count; i++) {
