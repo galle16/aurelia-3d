@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+import { mergeGeometries, toCreasedNormals } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 const rnd = (a, b) => a + Math.random() * (b - a);
 const CHRONO_START = Date.now();
@@ -83,6 +84,9 @@ export function metalMats(metal = 'steel') {
     polished: new THREE.MeshPhysicalMaterial({ color: c.p, metalness: 1, roughness: 0.14, side: THREE.DoubleSide }),
     brushed: new THREE.MeshPhysicalMaterial({
       color: c.b, metalness: 1, roughness: 1, roughnessMap: brushedRoughness(), anisotropy: 0.55,
+    }),
+    semi: new THREE.MeshPhysicalMaterial({
+      color: c.p, metalness: 1, roughness: 0.34, roughnessMap: brushedRoughness(), anisotropy: 0.2,
     }),
     satin: new THREE.MeshPhysicalMaterial({
       color: c.p, metalness: 1, roughness: 0.55, roughnessMap: brushedRoughness(), anisotropy: 0.35,
@@ -298,45 +302,62 @@ function bezelTopGeometry() {
   return geo;
 }
 
-// Eslabones Oyster: perfil extruido a lo largo del eslabón, con aristas redondeadas
-const BEV = 0.012;
-const BT = 0.012;
-function linkGeometry(shape, len) {
-  const depth = Math.max(0.01, len - 2 * BT);
-  const geo = new THREE.ExtrudeGeometry(shape, {
-    depth, bevelEnabled: true, bevelThickness: BT, bevelSize: BEV, bevelSegments: 3, curveSegments: 8,
+// Normales suaves para piezas pequeñas (toCreasedNormals cuantiza a 0.01, por eso se escala)
+function smooth(geo, angle = Math.PI / 3) {
+  geo.scale(100, 100, 100);
+  const out = toCreasedNormals(geo, angle);
+  out.scale(0.01, 0.01, 0.01);
+  return out;
+}
+
+// Eslabón Jubilee tipo "barril": perfil redondeado (largo × alto) extruido a lo ancho
+const JB = 0.01;
+const PERM = new THREE.Matrix4().set(0, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1); // (x,y,z) → (z,x,y)
+function barrelLink(len, h, w, rTop, rBot = 0.018) {
+  const L = len - 2 * JB;
+  const H = h - 2 * JB;
+  const rt = Math.min(rTop, L / 2 - 0.001, H - 0.001);
+  const rb = Math.min(rBot, L / 2 - 0.001);
+  const s = new THREE.Shape();
+  s.moveTo(-L / 2 + rb, 0);
+  s.lineTo(L / 2 - rb, 0);
+  s.absarc(L / 2 - rb, rb, rb, -Math.PI / 2, 0, false);
+  s.lineTo(L / 2, H - rt);
+  s.absarc(L / 2 - rt, H - rt, rt, 0, Math.PI / 2, false);
+  s.lineTo(-L / 2 + rt, H);
+  s.absarc(-L / 2 + rt, H - rt, rt, Math.PI / 2, Math.PI, false);
+  s.lineTo(-L / 2, rb);
+  s.absarc(-L / 2 + rb, rb, rb, Math.PI, Math.PI * 1.5, false);
+  const depth = Math.max(0.01, w - 2 * JB);
+  const geo = new THREE.ExtrudeGeometry(s, {
+    depth, bevelEnabled: true, bevelThickness: JB, bevelSize: JB, bevelSegments: 3, curveSegments: 12,
   });
-  geo.rotateX(Math.PI / 2); // perfil y → +z ; extrusión → eje y
-  geo.translate(0, depth / 2, 0);
-  return geo;
+  geo.translate(0, JB, -depth / 2);
+  geo.applyMatrix4(PERM); // largo → y, alto → z, ancho → x
+  return smooth(geo);
 }
-function centerLinkShape(w, h) {
-  const x = w / 2 - BEV;
-  const t = h - BEV;
-  const r = 0.02;
-  const s = new THREE.Shape();
-  s.moveTo(-x, BEV);
-  s.lineTo(x, BEV);
-  s.lineTo(x, t - r);
-  s.quadraticCurveTo(x, t, x - r, t);
-  s.lineTo(-x + r, t);
-  s.quadraticCurveTo(-x, t, -x, t - r);
-  s.closePath();
-  return s;
+
+// Fila Jubilee: 2 eslabones exteriores + 3 centrales; la columna del medio va desfasada media fila
+const J_PITCH = 0.2;
+const J_GAP = 0.006;
+function jubileeRow(k, dir, first) {
+  const wo = 0.225 * k;
+  const ws = 0.17 * k;
+  const g = 0.004;
+  const len = J_PITCH - J_GAP;
+  const outer = [];
+  const inner = [];
+  for (const sx of [-1, 1]) {
+    outer.push(barrelLink(len, 0.17, wo, 0.07).translate(sx * (1.5 * ws + 2 * g + wo / 2), 0, 0));
+    inner.push(barrelLink(len * 0.94, 0.152, ws, 0.075).translate(sx * (ws + g), 0, 0));
+  }
+  inner.push(barrelLink(len * 0.94, 0.152, ws, 0.075).translate(0, (dir * J_PITCH) / 2, 0));
+  if (first) inner.push(barrelLink(J_PITCH * 0.46, 0.152, ws, 0.06).translate(0, -dir * J_PITCH * 0.23, 0));
+  // alma interior: evita ver a través de la pulsera entre eslabones
+  outer.push(new THREE.BoxGeometry(3 * ws + 2 * wo, J_PITCH, 0.06).translate(0, 0, 0.035).toNonIndexed());
+  return { outer, inner };
 }
-function outerLinkShape(xIn, xOut, hIn, hOut) {
-  const sg = Math.sign(xOut - xIn);
-  const a = xIn + sg * BEV;
-  const b = xOut - sg * BEV;
-  const s = new THREE.Shape();
-  s.moveTo(a, BEV);
-  s.lineTo(b, BEV);
-  s.lineTo(b, hOut);
-  s.quadraticCurveTo(b - sg * 0.012, hIn - BEV, b - sg * Math.abs(b - a) * 0.5, hIn - BEV);
-  s.lineTo(a, hIn - BEV);
-  s.closePath();
-  return s;
-}
+
 const END_TOP = 1.31;
 function endLinkGeometry() {
   const w = 0.5;
@@ -352,16 +373,16 @@ function endLinkGeometry() {
     depth: 0.17, bevelEnabled: true, bevelThickness: 0.02, bevelSize: 0.014, bevelSegments: 3, curveSegments: 32,
   });
   geo.translate(0, 0, -0.19);
-  return geo;
+  return smooth(geo, Math.PI / 4);
 }
 
 /**
  * Cronógrafo procedural inspirado en un "Daytona" de acero (sin marcas registradas).
- * Mira hacia +Z; la pulsera Oyster recorre el eje Y curvándose hacia atrás.
+ * Mira hacia +Z; la pulsera Jubilee recorre el eje Y curvándose hacia atrás.
  */
 export function createWatch({
   metal = 'steel', dial = '#f2f2ef', subdial = '#dcdddf', subRing = '#a5a8ae', ink = '#141414',
-  subInk = '#141414', accent = '#c41e2a', links = 13, curve = 5, texSize = 2048,
+  subInk = '#141414', accent = '#c41e2a', links = 18, curve = 5, texSize = 2048,
 } = {}) {
   const M = metalMats(metal);
   const v = { dial, subdial, subRing, ink, subInk, accent };
@@ -413,8 +434,8 @@ export function createWatch({
       caseG.add(lug);
     }
   const endGeo = endLinkGeometry();
-  caseG.add(mesh(endGeo, M.brushed));
-  caseG.add(mesh(endGeo.clone().rotateZ(Math.PI), M.brushed));
+  caseG.add(mesh(endGeo, M.semi));
+  caseG.add(mesh(endGeo.clone().rotateZ(Math.PI), M.semi));
   for (const sy of [-1, 1]) caseG.add(mesh(new RoundedBoxGeometry(0.15, 0.12, 0.22, 3, 0.05), M.polished, 1.04, sy * 0.19, -0.04));
   addPart(caseG, new THREE.Vector3(0, 0, -0.5), new THREE.Vector3(0.15, 0.35, 0.05));
 
@@ -558,48 +579,45 @@ export function createWatch({
   const rotor = mesh(new THREE.ExtrudeGeometry(rotorShape, { depth: 0.03, bevelEnabled: false }), M.polished, 0, 0, -0.17);
   addPart(rotor, new THREE.Vector3(-0.8, -0.6, -2.0), new THREE.Vector3(0.3, 0.8, 2.5));
 
-  // ── Pulsera Oyster de 3 piezas ───────────────────────
-  // Eslabón central pulido, laterales satinados con perfil abombado; se estrecha hacia el cierre.
-  const PITCH = 0.27;
-  const ROW_GAP = 0.012;
-  const SIDE_GAP = 0.008;
-  const rowGeos = [];
-  for (let i = 0; i < links; i++) {
-    const k = 1 - (i / Math.max(1, links - 1)) * 0.2;
-    const wc = 0.31 * k;
-    const wo = 0.335 * k;
-    const len = PITCH - ROW_GAP;
-    const outer = [-1, 1].map((s) =>
-      linkGeometry(outerLinkShape(s * (wc / 2 + SIDE_GAP), s * (wc / 2 + SIDE_GAP + wo), 0.185, 0.075), len)
+  // ── Pulsera Jubilee de 5 piezas ──────────────────────
+  // Eslabones abombados pulidos en patrón de ladrillo; cada bloque de 3 filas se fusiona
+  // en 2 mallas (exteriores / centrales) para mantener pocas llamadas de dibujo.
+  const rowMatrix = (i, dir) => {
+    const th = ((i + 0.5) * J_PITCH + J_GAP) / curve;
+    return new THREE.Matrix4().compose(
+      new THREE.Vector3(0, dir * (END_TOP + curve * Math.sin(th)), -curve * (1 - Math.cos(th))),
+      new THREE.Quaternion().setFromEuler(new THREE.Euler(-dir * th, 0, 0)),
+      new THREE.Vector3(1, 1, 1)
     );
-    rowGeos.push({ center: linkGeometry(centerLinkShape(wc, 0.178), len * 0.97), outer });
-  }
+  };
   for (const dir of [1, -1]) {
-    let chunk = null;
-    for (let i = 0; i < links; i++) {
-      if (i % 3 === 0) {
-        chunk = new THREE.Group();
-        chunk.userData.side = Math.random() < 0.5 ? -1 : 1;
+    for (let start = 0; start < links; start += 3) {
+      const outerList = [];
+      const innerList = [];
+      for (let i = start; i < Math.min(start + 3, links); i++) {
+        const k = 1 - (i / Math.max(1, links - 1)) * 0.18;
+        const { outer, inner } = jubileeRow(k, dir, i === 0);
+        const m = rowMatrix(i, dir);
+        for (const g of outer) outerList.push(g.translate(0, 0, -0.17).applyMatrix4(m));
+        for (const g of inner) innerList.push(g.translate(0, 0, -0.17).applyMatrix4(m));
       }
-      const row = new THREE.Group();
-      row.add(mesh(rowGeos[i].center, M.satin, 0, 0, -0.17));
-      rowGeos[i].outer.forEach((g) => row.add(mesh(g, M.brushed, 0, 0, -0.17)));
-      const th = ((i + 0.5) * PITCH + ROW_GAP) / curve;
-      row.position.set(0, dir * (END_TOP + curve * Math.sin(th)), -curve * (1 - Math.cos(th)));
-      row.rotation.x = -dir * th;
-      chunk.add(row);
-      if (i % 3 === 2 || i === links - 1) {
-        const box = new THREE.Box3().setFromObject(chunk);
-        const c = box.getCenter(new THREE.Vector3());
-        chunk.children.forEach((ch) => ch.position.sub(c));
-        chunk.position.copy(c);
-        const side = chunk.userData.side;
-        addPart(
-          chunk,
-          new THREE.Vector3(side * rnd(2.4, 3.6), dir * rnd(0.2, 1.4) - c.y * 0.25, rnd(-0.5, 1.8)),
-          new THREE.Vector3(rnd(-1, 1), rnd(-0.8, 0.8), side * rnd(0.4, 1.2))
-        );
-      }
+      const outerGeo = mergeGeometries(outerList);
+      const innerGeo = mergeGeometries(innerList);
+      [...outerList, ...innerList].forEach((g) => g.dispose());
+      outerGeo.computeBoundingBox();
+      innerGeo.computeBoundingBox();
+      const c = outerGeo.boundingBox.clone().union(innerGeo.boundingBox).getCenter(new THREE.Vector3());
+      outerGeo.translate(-c.x, -c.y, -c.z);
+      innerGeo.translate(-c.x, -c.y, -c.z);
+      const chunk = new THREE.Group();
+      chunk.position.copy(c);
+      chunk.add(new THREE.Mesh(outerGeo, M.semi), new THREE.Mesh(innerGeo, M.polished));
+      const side = Math.random() < 0.5 ? -1 : 1;
+      addPart(
+        chunk,
+        new THREE.Vector3(side * rnd(2.4, 3.6), dir * rnd(0.2, 1.4) - c.y * 0.25, rnd(-0.5, 1.8)),
+        new THREE.Vector3(rnd(-1, 1), rnd(-0.8, 0.8), side * rnd(0.4, 1.2))
+      );
     }
   }
 

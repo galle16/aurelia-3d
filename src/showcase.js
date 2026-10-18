@@ -54,7 +54,7 @@ export function createShowcase() {
     cushion.position.set(x, -0.05, -0.62);
     group.add(cushion);
 
-    const w = createWatch({ ...MODELS[i], links: 6, curve: 0.95, texSize: 1024 });
+    const w = createWatch({ ...MODELS[i], links: 8, curve: 0.95, texSize: 1024 });
     w.root.scale.setScalar(0.66);
     w.root.position.set(x, 0.05, -0.05);
     w.root.rotation.x = -0.08;

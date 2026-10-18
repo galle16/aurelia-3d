@@ -28,17 +28,30 @@ scene.background = new THREE.Color('#030303');
 function studioEnv() {
   const env = new THREE.Scene();
   env.add(new THREE.Mesh(new THREE.SphereGeometry(20, 32, 16), new THREE.MeshBasicMaterial({ color: '#1c1b1a', side: THREE.BackSide })));
+  // softbox con bordes difuminados: reflejos más fotográficos en el metal pulido
+  const soft = (() => {
+    const c = document.createElement('canvas');
+    c.width = c.height = 256;
+    const g = c.getContext('2d');
+    g.filter = 'blur(22px)';
+    g.fillStyle = '#fff';
+    g.fillRect(40, 40, 176, 176);
+    return new THREE.CanvasTexture(c);
+  })();
   const box = (w, h, x, y, z, intensity, color = '#ffffff') => {
-    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide }));
+    const m = new THREE.Mesh(
+      new THREE.PlaneGeometry(w, h),
+      new THREE.MeshBasicMaterial({ color, alphaMap: soft, transparent: true, depthWrite: false, side: THREE.DoubleSide })
+    );
     m.material.color.multiplyScalar(intensity);
     m.position.set(x, y, z);
     m.lookAt(0, 0, 0);
     env.add(m);
   };
-  box(16, 6, 0, 10, 4, 1.5);                 // gran softbox cenital
-  box(4, 16, -11, 0, 5, 2.0, '#f2f5fa');     // tira lateral izquierda
-  box(4, 16, 11, 1, 3, 1.5, '#ffe2bd');      // tira lateral derecha cálida
-  box(18, 2.5, 0, -4, 11, 0.9);              // tira frontal baja
+  box(18, 8, 0, 10, 4, 1.8);                 // gran softbox cenital
+  box(6, 18, -11, 0, 5, 2.4, '#f2f5fa');     // tira lateral izquierda
+  box(6, 18, 11, 1, 3, 1.8, '#ffe2bd');      // tira lateral derecha cálida
+  box(20, 4, 0, -4, 11, 1.1);              // tira frontal baja
   box(10, 6, 0, 2, 12, 0.22);                 // relleno frontal suave
   box(5, 5, 6, 6, -9, 1.5, '#ffcf8a');       // contraluz
   const pm = new THREE.PMREMGenerator(renderer);
@@ -61,7 +74,7 @@ scene.add(key, rim, front, new THREE.AmbientLight('#ffffff', 0.08));
 // ── Reloj protagonista ────────────────────────────────
 const heroGroup = new THREE.Group();
 scene.add(heroGroup);
-let hero = createWatch({ ...VARIANTS.solstice, links: 13, curve: 5 });
+let hero = createWatch({ ...VARIANTS.solstice, links: 18, curve: 5 });
 heroGroup.add(hero.root);
 
 loadGLBWatch()
@@ -148,6 +161,8 @@ const clock = new THREE.Clock();
 // Solo en desarrollo: ?p=0.5 fija el progreso para revisar una fase
 const DEBUG_P = import.meta.env.DEV ? parseFloat(new URLSearchParams(location.search).get('p')) : NaN;
 let sm = Number.isFinite(DEBUG_P) ? DEBUG_P : 0;
+// Solo en desarrollo: ?cam=x,y,z,tx,ty,tz coloca la cámara para inspeccionar detalles
+const DEBUG_CAM = import.meta.env.DEV && new URLSearchParams(location.search).get('cam')?.split(',').map(Number);
 let ctaShown = false;
 
 function frame() {
@@ -187,6 +202,10 @@ function frame() {
   camera.position.set(mouse.sx * 0.5 * par, -mouse.sy * 0.35 * par + SHOWCASE_Y * pan + 0.35 * pan, z);
   camera.lookAt(0, SHOWCASE_Y * pan + 0.35 * pan, 0);
 
+  if (DEBUG_CAM) {
+    camera.position.set(...DEBUG_CAM.slice(0, 3));
+    camera.lookAt(...DEBUG_CAM.slice(3, 6));
+  }
   front.intensity = 0;
   front.position.y = SHOWCASE_Y * pan;
   streak.update(1 - ss(0.04, 0.14, p), t);
