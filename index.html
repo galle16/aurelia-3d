@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AURELIA — Alta relojería en oro</title>
+  <meta name="description" content="Experiencia 3D de scroll: la historia de un reloj de lujo ficticio." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Inter:wght@300;400;500&display=swap" rel="stylesheet" />
+</head>
+<body>
+  <canvas id="gl"></canvas>
+  <div class="vignette"></div>
+  <div class="streak" id="streak"></div>
+
+  <header class="nav">
+    <span class="brand">AURELIA</span>
+    <nav><a href="#">Colección</a><a href="#">Artesanía</a><a href="#">Tienda</a></nav>
+  </header>
+
+  <section class="chapter center" id="c0">
+    <p class="eyebrow">Maison Aurelia · Ginebra</p>
+    <h1>AURELIA</h1>
+    <p class="sub">Cronos · Oro amarillo de 18 quilates</p>
+    <div class="hint"><span class="mouse"></span>Desliza para descubrir</div>
+  </section>
+
+  <section class="chapter left" id="c1">
+    <p class="eyebrow">Capítulo I</p>
+    <h2>Trescientas piezas.<br />Una sola obsesión.</h2>
+    <p class="sub">Cada engranaje, cada puente y cada eslabón nace en nuestro taller y se pule a mano.</p>
+  </section>
+
+  <section class="chapter right" id="c2">
+    <p class="eyebrow">Capítulo II</p>
+    <h2>Todo vuelve<br />a su lugar.</h2>
+    <p class="sub">El movimiento automático se ensambla pieza a pieza, hasta latir a la perfección.</p>
+  </section>
+
+  <section class="chapter left" id="c3">
+    <p class="eyebrow">Capítulo III</p>
+    <h2>Luz en<br />cada hora.</h2>
+    <p class="sub">Índices luminiscentes · Cristal de zafiro · Hermético hasta 100 m</p>
+  </section>
+
+  <section class="chapter collection" id="c4">
+    <p class="eyebrow">Capítulo IV</p>
+    <h2>La colección</h2>
+  </section>
+  <button class="cta" id="cta">Descubrir más</button>
+  <div class="label" id="l0">Solstice</div>
+  <div class="label" id="l1">Abyss</div>
+  <div class="label" id="l2">Meridian</div>
+
+  <div id="scroll"></div>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
