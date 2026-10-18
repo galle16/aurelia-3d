@@ -3,55 +3,61 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>AURELIA — Alta relojería en oro</title>
-  <meta name="description" content="Experiencia 3D de scroll: la historia de un reloj de lujo ficticio." />
+  <title>AURELIA — Alta relojería</title>
+  <meta name="description" content="Experiencia 3D de scroll: la historia de un reloj de oro, pieza a pieza." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Inter:wght@300;400;500&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
 </head>
 <body>
   <canvas id="gl"></canvas>
   <div class="vignette"></div>
-  <div class="streak" id="streak"></div>
 
   <header class="nav">
+    <button class="icon" aria-label="Menú"><span></span><span></span><span></span></button>
     <span class="brand">AURELIA</span>
-    <nav><a href="#">Colección</a><a href="#">Artesanía</a><a href="#">Tienda</a></nav>
+    <nav>
+      <a href="#">Colección</a><i>·</i><a href="#">Artesanía</a><i>·</i><a href="#">Personalizar</a><i>·</i><a href="#">Tienda</a>
+    </nav>
+    <div class="nav-right">
+      <button class="icon" aria-label="Buscar"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg></button>
+      <button class="icon" aria-label="Bolsa"><svg viewBox="0 0 24 24"><path d="M5 8h14l-1 12H6z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg></button>
+    </div>
   </header>
 
-  <section class="chapter center" id="c0">
+  <section class="chapter hero" id="c0">
     <p class="eyebrow">Maison Aurelia · Ginebra</p>
-    <h1>AURELIA</h1>
-    <p class="sub">Cronos · Oro amarillo de 18 quilates</p>
-    <div class="hint"><span class="mouse"></span>Desliza para descubrir</div>
+    <h1>Perpetual 41</h1>
+    <p class="sub">Oro amarillo de 18 quilates · Bisel estriado · Calibre automático</p>
   </section>
+  <div class="hint" id="hint"><span class="mouse"></span>Desliza para descubrir</div>
 
   <section class="chapter left" id="c1">
-    <p class="eyebrow">Capítulo I</p>
-    <h2>Trescientas piezas.<br />Una sola obsesión.</h2>
-    <p class="sub">Cada engranaje, cada puente y cada eslabón nace en nuestro taller y se pule a mano.</p>
+    <p class="eyebrow">Capítulo I · El interior</p>
+    <h2>Doscientas piezas.<br />Una sola obsesión.</h2>
+    <p class="sub">Cada engranaje, puente y eslabón se fabrica y se pule a mano en nuestro taller.</p>
   </section>
 
   <section class="chapter right" id="c2">
-    <p class="eyebrow">Capítulo II</p>
+    <p class="eyebrow">Capítulo II · El ensamblaje</p>
     <h2>Todo vuelve<br />a su lugar.</h2>
-    <p class="sub">El movimiento automático se ensambla pieza a pieza, hasta latir a la perfección.</p>
+    <p class="sub">El calibre automático se ensambla pieza a pieza hasta latir con precisión de cronómetro.</p>
   </section>
 
-  <section class="chapter left" id="c3">
-    <p class="eyebrow">Capítulo III</p>
+  <section class="chapter left low" id="c3">
+    <p class="eyebrow">Capítulo III · La esfera</p>
     <h2>Luz en<br />cada hora.</h2>
-    <p class="sub">Índices luminiscentes · Cristal de zafiro · Hermético hasta 100 m</p>
+    <p class="sub">Índices luminiscentes · Lupa sobre la fecha · Cristal de zafiro · Hermético hasta 100 m</p>
   </section>
 
   <section class="chapter collection" id="c4">
     <p class="eyebrow">Capítulo IV</p>
     <h2>La colección</h2>
   </section>
-  <button class="cta" id="cta">Descubrir más</button>
-  <div class="label" id="l0">Solstice</div>
-  <div class="label" id="l1">Abyss</div>
-  <div class="label" id="l2">Meridian</div>
+  <div class="label" id="l0"></div>
+  <div class="label" id="l1"></div>
+  <div class="label" id="l2"></div>
+  <button class="cta" id="cta"><span>Descubrir más</span></button>
 
   <div id="scroll"></div>
   <script type="module" src="/src/main.js"></script>

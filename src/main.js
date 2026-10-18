@@ -1,107 +1,121 @@
 import './style.css';
 import * as THREE from 'three';
-import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { createWatch } from './watch.js';
+import { loadGLBWatch } from './glbWatch.js';
+import { createShards, createSparks, createStreak } from './effects.js';
+import { createShowcase, MODELS } from './showcase.js';
 
 gsap.registerPlugin(ScrollTrigger);
 
+// ── Render ────────────────────────────────────────────
 const canvas = document.getElementById('gl');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 1.75));
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.15;
+renderer.toneMappingExposure = 0.95;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x050505);
-const pmrem = new THREE.PMREMGenerator(renderer);
-scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-scene.environmentIntensity = 0.9;
+scene.background = new THREE.Color('#030303');
 
-const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 100);
-
-// Luces
-const key = new THREE.DirectionalLight(0xfff0cf, 2.4);
-key.position.set(4, 5, 6);
-const rim = new THREE.DirectionalLight(0xffc873, 2);
-rim.position.set(-6, 2, -4);
-const spot = new THREE.PointLight(0xffd68a, 30, 20);
-spot.position.set(0, 0, 5);
-scene.add(key, rim, spot, new THREE.AmbientLight(0xffffff, 0.15));
-
-// Reloj principal
-const hero = createWatch();
-const heroGroup = new THREE.Group();
-heroGroup.add(hero.root);
-scene.add(heroGroup);
-
-// Colección
-const variants = [
-  { dial: '#efece3', marker: '#b8892b' },
-  { dial: '#5a5e66', marker: '#e7c35f' },
-  { dial: '#d8bd82', marker: '#8d6414' },
-];
-const collection = new THREE.Group();
-const colWatches = variants.map((v) => {
-  const w = createWatch(v);
-  const holder = new THREE.Group();
-  holder.add(w.root);
-  collection.add(holder);
-  return { w, holder };
-});
-scene.add(collection);
-
-// Partículas
-const N = 900;
-const sparkGeo = new THREE.BufferGeometry();
-const base = new Float32Array(N * 3);
-const dirs = new Float32Array(N * 3);
-for (let i = 0; i < N; i++) {
-  const v = new THREE.Vector3(rnd(-1, 1), rnd(-1, 1), rnd(-1, 1)).normalize().multiplyScalar(Math.random() * 1.2);
-  base.set([v.x, v.y, v.z * 0.6], i * 3);
-  const d = new THREE.Vector3(rnd(-1, 1), rnd(-1, 1), rnd(-0.4, 1)).normalize().multiplyScalar(rnd(2, 7));
-  dirs.set([d.x, d.y, d.z], i * 3);
+// Entorno de estudio: fondo oscuro con softboxes → reflejos de joyería
+function studioEnv() {
+  const env = new THREE.Scene();
+  env.add(new THREE.Mesh(new THREE.SphereGeometry(20, 32, 16), new THREE.MeshBasicMaterial({ color: '#0a0806', side: THREE.BackSide })));
+  const box = (w, h, x, y, z, intensity, color = '#fff3e0') => {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide }));
+    m.material.color.multiplyScalar(intensity);
+    m.position.set(x, y, z);
+    m.lookAt(0, 0, 0);
+    env.add(m);
+  };
+  box(6, 1.5, 0, 9, 6, 1.1);            // cenital
+  box(3, 12, -10, 0, 4, 3.2);        // lateral izq
+  box(3, 12, 10, 1, 2, 2.4, '#ffd9a0');
+  box(14, 1.2, 0, -3, 10, 1.6);      // tira frontal baja
+  box(4, 4, 6, 6, -8, 1.5, '#ffcf8a'); // contraluz
+  const pm = new THREE.PMREMGenerator(renderer);
+  const tex = pm.fromScene(env, 0.02).texture;
+  pm.dispose();
+  return tex;
 }
-sparkGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(N * 3), 3));
-function rnd(a, b) { return a + Math.random() * (b - a); }
-const dot = (() => {
-  const c = document.createElement('canvas'); c.width = c.height = 64;
-  const g = c.getContext('2d');
-  const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
-  gr.addColorStop(0, 'rgba(255,240,200,1)'); gr.addColorStop(0.3, 'rgba(255,200,100,.7)'); gr.addColorStop(1, 'rgba(255,180,60,0)');
-  g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
-  return new THREE.CanvasTexture(c);
-})();
-const sparkMat = new THREE.PointsMaterial({
-  size: 0.09, map: dot, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0,
-});
-const sparks = new THREE.Points(sparkGeo, sparkMat);
-scene.add(sparks);
+scene.environment = studioEnv();
 
-// Estado de scroll
+const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 200);
+
+const key = new THREE.DirectionalLight('#fff1d6', 0.6);
+key.position.set(3, 6, 8);
+const rim = new THREE.DirectionalLight('#ffbf66', 1.2);
+rim.position.set(-6, 3, -5);
+const front = new THREE.PointLight('#ffd690', 8, 30, 1.6);
+front.position.set(0, 0, 6);
+scene.add(key, rim, front, new THREE.AmbientLight('#ffffff', 0.08));
+
+// ── Reloj protagonista ────────────────────────────────
+const heroGroup = new THREE.Group();
+scene.add(heroGroup);
+let hero = createWatch({ links: 10, curve: 5 });
+heroGroup.add(hero.root);
+
+loadGLBWatch()
+  .then((glb) => {
+    heroGroup.remove(hero.root);
+    hero = glb;
+    heroGroup.add(hero.root);
+    console.info('[AURELIA] reloj.glb cargado', glb.info);
+  })
+  .catch(() => console.info('[AURELIA] Sin public/models/reloj.glb → reloj procedural'));
+
+const shards = createShards();
+const sparks = createSparks();
+heroGroup.add(shards.mesh, sparks.points);
+const streak = createStreak();
+scene.add(streak.group);
+
+// ── Estuche ───────────────────────────────────────────
+const SHOWCASE_Y = -16;
+const showcase = createShowcase();
+showcase.group.position.y = SHOWCASE_Y;
+scene.add(showcase.group);
+
+// ── Postproceso ───────────────────────────────────────
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.5, 0.5, 3);
+composer.addPass(bloom);
+composer.addPass(new OutputPass());
+
+// ── Scroll ────────────────────────────────────────────
 const state = { p: 0 };
 gsap.to(state, {
   p: 1, ease: 'none',
-  scrollTrigger: { trigger: '#scroll', start: 'top top', end: 'bottom bottom', scrub: 1.2 },
+  scrollTrigger: { trigger: '#scroll', start: 'top top', end: 'bottom bottom', scrub: 1 },
 });
 
-// Overlays
+const $ = (id) => document.getElementById(id);
 const chapters = [
-  { el: document.getElementById('c0'), r: [-1, -1, 0.05, 0.11] },
-  { el: document.getElementById('c1'), r: [0.14, 0.2, 0.38, 0.45] },
-  { el: document.getElementById('c2'), r: [0.5, 0.55, 0.66, 0.71] },
-  { el: document.getElementById('c3'), r: [0.73, 0.76, 0.82, 0.86] },
-  { el: document.getElementById('c4'), r: [0.9, 0.95, 1.1, 1.2] },
+  { el: $('c0'), r: [-1, -1, 0.04, 0.1] },
+  { el: $('c1'), r: [0.15, 0.2, 0.4, 0.46] },
+  { el: $('c2'), r: [0.5, 0.54, 0.62, 0.67] },
+  { el: $('c3'), r: [0.71, 0.74, 0.8, 0.83] },
+  { el: $('c4'), r: [0.92, 0.96, 1.1, 1.2] },
 ];
-const labels = [0, 1, 2].map((i) => document.getElementById('l' + i));
-const cta = document.getElementById('cta');
-const streak = document.getElementById('streak');
-const trap = (p, [a, b, c, d]) => Math.min(Math.max((p - a) / (b - a || 1), 0), Math.max((d - p) / (d - c || 1), 0), 1);
-const ss = (a, b, x) => { const t = Math.min(Math.max((x - a) / (b - a), 0), 1); return t * t * (3 - 2 * t); };
+const labels = [0, 1, 2].map((i) => $('l' + i));
+labels.forEach((l, i) => (l.textContent = MODELS[i].name));
+const cta = $('cta');
+const hint = $('hint');
 
-// Mouse
+const clamp = (x, a = 0, b = 1) => Math.min(Math.max(x, a), b);
+const ss = (a, b, x) => { const t = clamp((x - a) / (b - a)); return t * t * (3 - 2 * t); };
+const trap = (p, [a, b, c, d]) => Math.min(clamp((p - a) / (b - a || 1)), clamp((d - p) / (d - c || 1)));
+const lerp = (a, b, t) => a + (b - a) * t;
+
 const mouse = { x: 0, y: 0, sx: 0, sy: 0 };
 addEventListener('pointermove', (e) => {
   mouse.x = (e.clientX / innerWidth) * 2 - 1;
@@ -110,101 +124,99 @@ addEventListener('pointermove', (e) => {
 
 let aspect = 1;
 function resize() {
-  renderer.setSize(innerWidth, innerHeight, false);
-  aspect = innerWidth / innerHeight;
+  const w = innerWidth, h = innerHeight;
+  if (!w || !h) return;
+  renderer.setSize(w, h, false);
+  composer.setSize(w, h);
+  bloom.setSize(w, h);
+  aspect = w / h;
   camera.aspect = aspect;
   camera.updateProjectionMatrix();
 }
 addEventListener('resize', resize);
 resize();
 
-cta.addEventListener('click', () => {
-  gsap.fromTo(cta, { scale: 1 }, { scale: 1.06, yoyo: true, repeat: 1, duration: 0.18 });
-});
+// distancia de cámara para que quepa un alto/ancho dado
+const fitZ = (height, width) => {
+  const t = Math.tan((camera.fov * Math.PI) / 360);
+  return Math.max(height / (2 * t), width / (2 * t * aspect));
+};
 
 const tmp = new THREE.Vector3();
 const clock = new THREE.Clock();
 let sm = 0;
+let ctaShown = false;
 
 function frame() {
   const dt = Math.min(clock.getDelta(), 0.05);
+  const t = clock.elapsedTime;
   const now = Date.now();
-  const p = state.p;
-  sm += (p - sm) * Math.min(1, dt * 8);
+  sm += (state.p - sm) * Math.min(1, dt * 7);
+  const p = sm;
 
-  // Explosión: 0.12→0.36 sale, mantiene, 0.5→0.72 vuelve
-  const e = Math.max(0, ss(0.12, 0.36, sm) - ss(0.5, 0.72, sm));
+  // Fases
+  const e = Math.max(0, ss(0.12, 0.34, p) - ss(0.48, 0.66, p)); // explosión
+  const spin = ss(0.48, 0.7, p);                                 // giro al rearmarse
+  const zoom = ss(0.67, 0.78, p);                                // esfera a pantalla completa
+  const pan = ss(0.82, 0.94, p);                                 // bajada al estuche
+
   hero.setExplode(e);
   hero.tick(dt, now);
-  colWatches.forEach((c) => c.w.tick(dt, now));
+  hero.setGlow(0.7 + zoom * 5);
+  shards.update(e, t);
+  sparks.update(e, t);
+  showcase.tick(dt, now, t);
 
-  // Rotación del reloj
-  const spin = ss(0.5, 0.74, sm) * Math.PI * 2;
-  heroGroup.rotation.y = Math.sin(now * 0.0005) * 0.25 + spin + sm * 0.4 * Math.sin(sm * 6);
-  heroGroup.position.y = -1.3 * (1 - ss(0.04, 0.16, sm));
-  heroGroup.rotation.x = Math.sin(now * 0.0007) * 0.05 + e * 0.25;
+  heroGroup.rotation.y = Math.sin(t * 0.45) * 0.22 * (1 - zoom) + spin * Math.PI * 2 + e * 0.5;
+  heroGroup.rotation.x = Math.sin(t * 0.6) * 0.04 + e * 0.22 - zoom * 0.04;
 
   // Cámara
-  const fit = aspect < 1.1 ? 1.1 / aspect : 1;
-  const zoom = ss(0.72, 0.84, sm);
-  const out = ss(0.86, 0.95, sm);
-  let z = 15 + 6 * e;
-  z = z + (4.4 - z) * zoom;
-  z = z + (13.5 - z) * out;
-  camera.position.set(mouse.sx * 0.6, -mouse.sy * 0.4, z * fit);
-  camera.lookAt(0, 0, 0);
+  const zHero = fitZ(8.6, 3.2);
+  const zExplode = fitZ(6.4, 7.5);
+  const zDial = fitZ(2.5, 2.4);
+  const zCase = fitZ(5.6, 9.6);
+  let z = lerp(zHero, zExplode, ss(0.1, 0.3, p) * (1 - ss(0.5, 0.66, p)));
+  z = lerp(z, zDial, zoom);
+  z = lerp(z, zCase, pan);
   mouse.sx += (mouse.x - mouse.sx) * 0.05;
   mouse.sy += (mouse.y - mouse.sy) * 0.05;
+  const par = 1 - zoom * 0.7;
+  camera.position.set(mouse.sx * 0.5 * par, -mouse.sy * 0.35 * par + SHOWCASE_Y * pan + 0.35 * pan, z);
+  camera.lookAt(0, SHOWCASE_Y * pan + 0.35 * pan, 0);
 
-  // Hero vs colección
-  const heroScale = 1 - out;
-  heroGroup.scale.setScalar(Math.max(heroScale, 0.0001));
-  heroGroup.visible = heroScale > 0.01;
-  collection.visible = out > 0.01;
-  const spacing = Math.min(3.3, (2 * Math.tan((camera.fov * Math.PI) / 360) * 13.5 * aspect) / 3.4);
-  colWatches.forEach((c, i) => {
-    c.holder.position.set((i - 1) * spacing, -0.1 + (1 - out) * -1.2, 0);
-    const s = 0.5 * (spacing / 3.3 > 0.7 ? 1 : 0.8) * out;
-    c.holder.scale.setScalar(Math.max(s, 0.0001));
-    c.holder.rotation.y = Math.sin(now * 0.0006 + i * 1.7) * 0.45;
-    const lp = tmp.set((i - 1) * spacing, -2.1 * 0.4 * 3 * 0.45 - 0.5, 0).project(camera);
-    labels[i].style.left = (lp.x * 0.5 + 0.5) * innerWidth + 'px';
-    labels[i].style.top = (-lp.y * 0.5 + 0.5) * innerHeight + 'px';
-    labels[i].style.opacity = String(trap(sm, [0.92, 0.97, 1.1, 1.2]));
+  front.intensity = zoom * 3 * (1 - pan);
+  front.position.y = SHOWCASE_Y * pan;
+  streak.update(1 - ss(0.04, 0.14, p), t);
+  streak.group.position.y = SHOWCASE_Y * pan;
+  streak.halo.material.opacity *= 1 - pan;
+  bloom.strength = 0.6 + zoom * 0.3 + e * 0.3;
+
+  // Rótulos bajo cada compartimento
+  const lo = trap(p, [0.93, 0.97, 1.1, 1.2]);
+  showcase.slotX.forEach((x, i) => {
+    tmp.set(x, SHOWCASE_Y - 1.55, 0.3).project(camera);
+    labels[i].style.transform = `translate(${(tmp.x * 0.5 + 0.5) * innerWidth}px, ${(-tmp.y * 0.5 + 0.5) * innerHeight}px) translate(-50%, 0)`;
+    labels[i].style.opacity = lo;
   });
 
-  // Luz que sigue el zoom
-  spot.intensity = 30 + zoom * 40;
-
-  // Chispas
-  const arr = sparkGeo.attributes.position.array;
-  const burst = Math.min(1, e * 1.4);
-  const flash = Math.sin(Math.PI * Math.min(1, Math.max(0, e))) ; // más visibles a mitad del movimiento
-  for (let i = 0; i < N; i++) {
-    const k = i * 3;
-    arr[k] = base[k] + dirs[k] * burst * 0.8 + Math.sin(now * 0.001 + i) * 0.03;
-    arr[k + 1] = base[k + 1] + dirs[k + 1] * burst * 0.8 + Math.cos(now * 0.0013 + i) * 0.03;
-    arr[k + 2] = base[k + 2] + dirs[k + 2] * burst * 0.5;
-  }
-  sparkGeo.attributes.position.needsUpdate = true;
-  sparks.rotation.copy(heroGroup.rotation);
-  sparkMat.opacity = Math.min(1, 0.12 + flash * 1.2) * (1 - out);
-  sparks.visible = sparkMat.opacity > 0.01;
-
-  // Texto
   chapters.forEach(({ el, r }) => {
-    const o = trap(sm, r);
-    el.style.opacity = String(o);
-    el.style.filter = o < 1 ? `blur(${(1 - o) * 6}px)` : 'none';
+    const o = trap(p, r);
+    el.style.opacity = o;
+    el.style.filter = o < 0.999 ? `blur(${(1 - o) * 8}px)` : 'none';
   });
-  const ctaO = trap(sm, [0.93, 0.98, 1.1, 1.2]);
-  cta.style.opacity = String(ctaO);
-  cta.style.pointerEvents = ctaO > 0.5 ? 'auto' : 'none';
-  streak.style.opacity = String(0.9 * (1 - ss(0.0, 0.12, sm)));
+  hint.style.opacity = 1 - ss(0.01, 0.05, p);
 
-  renderer.render(scene, camera);
+  const show = p > 0.95;
+  if (show !== ctaShown) {
+    ctaShown = show;
+    cta.classList.toggle('on', show);
+  }
+
+  composer.render();
   requestAnimationFrame(frame);
 }
 frame();
 
-gsap.from('#c0 > *', { y: 30, opacity: 0, duration: 1.4, stagger: 0.15, ease: 'power3.out', delay: 0.3 });
+gsap.from('#c0 > *', { y: 24, opacity: 0, duration: 1.4, stagger: 0.12, ease: 'power3.out', delay: 0.2 });
+gsap.from('.nav', { y: -20, opacity: 0, duration: 1.2, ease: 'power3.out' });
+if (import.meta.env.DEV) window.__dbg = { scene, bloom, renderer, key, rim, front, heroGroup };
